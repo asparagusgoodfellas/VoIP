@@ -21,6 +21,11 @@
                                     <b-icon icon="cloud-download" scale="1"></b-icon>
                                 </b-button>
                             </div>
+                            <div class="ml-2">
+                              <b-button v-b-tooltip.hover title="Delete All Contact" @click="deleteAll()" class="float-left d-flex m-1" size="sm" variant="danger">
+                                    <b-icon icon="trash-fill" scale="1"></b-icon>
+                                </b-button>
+                            </div>
                             <div>
                                 <h4 class="pr-3 m-1">
                                     Contacts
@@ -30,8 +35,20 @@
                     </div>
                 </div>
                 <div>
+                  <div class="wrap-search">
+                    <div class="search">
+                      <div class="d-flex flex-row bd-highlight">
+                        <div class="bd-highlight">
+                          &nbsp;&nbsp;<b-icon icon="search"></b-icon>&nbsp;&nbsp;
+                        </div>
+                        <div class="bd-highlight">
+                          <input type="text" class="input-search" v-model="query" @keyup="searchContact()" placeholder="Search" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <ul class="list-group">
-                    <li v-for="contact in contacts" :key="contact._id" class="list-group-item d-flex justify-content-between align-items-center">
+                    <li v-for="contact in search_contacts" :key="contact._id" class="list-group-item d-flex justify-content-between align-items-center">
                       <div class="d-flex flex-column bd-highlight">
                         <div class="bd-highlight">
                           {{contact.first_name}} {{contact.last_name}}
@@ -106,8 +123,9 @@
 import { post } from '../../core/module/common.module'
 import { required, helpers } from 'vuelidate/lib/validators'
 import Papa from 'papaparse'
+import { EventBus } from '@/event-bus'
 // eslint-disable-next-line no-useless-escape
-const phonenumber = helpers.regex('phonenumber', /^\+?[0-9\(\-\)\ ]{3,17}$/)
+const phonenumber = helpers.regex('phonenumber', /^\+?[0-9\(\-\)\ ]{5,17}$/)
 export default {
   props: ['contacts'],
   data () {
@@ -121,12 +139,14 @@ export default {
       editId: false,
       csvFile: null,
       submitted2: false,
+      search_contacts: [],
       form: {
         first_name: '',
         last_name: '',
         number: '',
         note: ''
       },
+      query: '',
       jsonData: [
         {
           'first_name': 'John',
@@ -148,12 +168,24 @@ export default {
     }
   },
   mounted: function () {
-    // this.getContacts()
+    EventBus.$on('addContact', (number) => {
+      this.editId = false
+      this.emptyContact()
+      this.$refs['modal-contact'].show()
+      this.form.number = number
+    })
   },
   methods: {
     exportContact () {
       this.downloadFile(this.contacts, 'contacts')
     },
+    emptyContact () {
+      this.form.first_name = ''
+      this.form.last_name = ''
+      this.form.number = ''
+      this.form.note = ''
+    },
+
     async onSelect (event) {
       this.csvFile = true
       console.log(event)
@@ -242,6 +274,7 @@ export default {
     },
     openContactModel () {
       this.editId = false
+      this.emptyContact()
       this.$refs['modal-contact'].show()
     },
     handleSubmit (e) {
@@ -270,9 +303,14 @@ export default {
       this.$store
         .dispatch(post, request)
         .then((data) => {
-          this.$refs['modal-contact'].hide()
-          // this.getContacts()
-          this.$emit('onaddContact', true)
+          if (data) {
+            this.$refs['modal-contact'].hide()
+            // this.getContacts()
+            this.$emit('onaddContact', true)
+            EventBus.$emit('contactAdded', this.form.number)
+            this.emptyContact()
+            this.submitted = false
+          }
         })
         .catch((e) => {
           console.log(e)
@@ -330,6 +368,7 @@ export default {
                 text: 'Contact Deleted successfully!'
               })
               this.$emit('onaddContact', true)
+              EventBus.$emit('contactAdded', 'delete')
               // this.getContacts()
               // this.$refs['modal-contact'].hide()
             })
@@ -341,7 +380,7 @@ export default {
           // eslint-disable-next-line no-undef
         } else if (result.isDenied) {
           // eslint-disable-next-line no-undef
-          this.$swal.fire('chat not deleted', '', 'info')
+          this.$swal.fire('contact not deleted', '', 'info')
         }
       })
     },
@@ -354,6 +393,62 @@ export default {
         note: contact.note
       }
       this.$refs['modal-contact'].show()
+    },
+    deleteAll () {
+      this.$swal.fire({
+        icon: 'info',
+        title: 'Are you sure you want to delete ALL contacts?',
+        showDenyButton: true,
+        showCancelButton: false,
+        confirmButtonText: `Yes, Delete all`,
+        denyButtonText: `No`
+      }).then((result) => {
+        if (result.isConfirmed) {
+          var request = {
+            data: {},
+            url: 'contact/deleteall'
+          }
+          this.$store
+            .dispatch(post, request)
+            .then((data) => {
+              this.$swal({
+                icon: 'success',
+                title: 'Success',
+                text: 'All contacts deleted successfully'
+              })
+              this.$emit('onaddContact', true)
+              // this.getContacts()
+              // this.$refs['modal-contact'].hide()
+            })
+            .catch((e) => {
+              console.log(e)
+            })
+          // contact/delete
+          // var messageData = {user: this.userdata._id, number: this.activeChat}
+          // eslint-disable-next-line no-undef
+        } else if (result.isDenied) {
+          // eslint-disable-next-line no-undef
+          this.$swal.fire('contacts not deleted', '', 'info')
+        }
+      })
+    },
+    searchContact () {
+      var search = new RegExp(this.query, 'i')
+      this.search_contacts = this.contacts.filter(item => {
+        if (search.test(item.first_name)) {
+          return search.test(item.first_name)
+        } else if (search.test(item.last_name)) {
+          return search.test(item.last_name)
+        } else if (search.test(item.number)) {
+          return search.test(item.number)
+        }
+      })
+    }
+  },
+  watch: {
+    contacts: function (newVal, oldVal) {
+      this.searchContact()
+      // console.log('Prop changed: ', newVal, ' | was: ', oldVal)
     }
   }
 }

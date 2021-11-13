@@ -3,6 +3,150 @@
 
 > Note: Every update deletes the MMS media files/folder
 
+---
+## v0.77 (Nov 11, 2021)
+### UI/Bug
+- Added cancel button on attachment window
+
+### Security
+- Added Secure Cookie session values
+- Trust Proxy
+- NOSQL injection protection of functions, input sanitization (100+ syntax edits)
+- Secure functions (Math. to crypto.)
+- Added compression
+- Expose only directories needed, hiding root
+
+## v0.76 (Nov 9, 2021)
+### UI
+- Text message overflow word break for very long links fixed
+
+## v0.75 (Nov 9, 2021)
+### Security
+- Protections added as security headers for: XSS, NoSniff, HSTS, X-Powered-By, FrameGuard, DNS Prefetch, Content Security Policy.
+
+### Bugs
+- Pull down to refresh now updates the notification dot and the profile inside the dropdown
+- Redirect issue to 404 fixed for non-custom directory
+
+
+## v0.74 (Nov 2, 2021)
+- **UI:** Error page update
+
+
+## v0.73 (Nov 2, 2021)
+### Security
+- ***Security through Obscurity***: Put in a random directory name in `.env` under `APPDIRECTORY`. Your application will be served only on that subdirectory.
+People will not be able to browse to your app page (by discovering your public github page and _deployment_ link)
+_Example:_
+>|||
+>|---|---|
+>|APPDIRECTORY|789gh8ag96lgw7ag8fghlkg|
+>|||
+By default it is not defined. Full instructions [here](https://github.com/0perationPrivacy/voip/wiki/Bonus-Steps).
+- ### Bug fix:
+  - fixes search bar cursor size on Chromium browsers (Chrome/Brave)
+  - Delete account error on empty password fixed
+  - SMS reply to shortcode bug fixed. If provider rejects it, you will see their error message.
+  - Minor changes in code to function names, variables, comments
+
+- ### UI:
+  - Fixed loading bar size and overlapping issues
+  - **version** is now viewable under **Settings** and **Login** page (removed from .env)
+  - Full message timestamps (M D, Y H:M)
+  - On compose message, contacts dropdown now clears after seleting a contact
+  
+
+
+
+
+## v0.72 (Oct 30, 2021)
+- ***Update ribbon*** shows when there's a newer version available. Links it to the changelog
+
+## v0.71 (Oct 30, 2021)
+- Added _plus icon_ for contact not in list
+- New **horizontal bar Loader** visible as messages load
+- **Fallback URL** added (_redundancy_, can host on 2 servers now with the same login). You will receive the sms/call on both servers.
+- Removed error when deleting an already deleted number from Telnyx/Twilio
+
+## v0.70 (Oct 27, 2021)
+
+### Contacts
+- Auto sorting contacts alphabetically by first name
+- Searching through contacts
+
+### Account Section added
+- Change username option added 
+- Change password option added
+- Delete Account option added (will delete everything)
+
+### Security
+- Rate limiter feature added (mitigates brute forcing the app)
+- New https variable added (will enable in next update)
+
+### Search
+- Search messages
+- Search Contacts
+
+### Bugs/Enhancements
+- Set min number of phone digits in contacts to 5
+- New profile creation switches to that profile now
+- API delete icon doesn't show if there's nothing to delete
+- Message bar clears when you switch profiles
+
+
+
+## v0.69 (Oct 22, 2021)
+
+- Settings
+  - **Removed** the Call Settings section
+  - Click on the `Settings cog` > `Profile Settings`
+  - Click `Get Number` again, select the same number and hit `save`.
+  - Clicking save takes a few seconds, in the back end, it configures telnyx or twilio with calling capabilities in multiple places easily saving you 15-20 mins and countless hours of troubleshooting.
+  - If calling still doesn't work, click on the delete trash icon under profile settings (this removes settings from telnyx/twilio), and recreate the profile.
+
+## v0.68 (Oct 21, 2021)
+
+- Settings
+  - Moved settings from the profile dropdown to its own icon
+  - Call settings added (instructions in the Wiki)
+  - Email settings added (instructions in the Wiki)
+
+- VoIP Calling
+   - Call any number from your desktop browser
+   - Receive calls on your number(s) on your desktop browser
+   - Call from you mobile phone browser or web app shortcut (can't receive as mobile browsers don't support browser notifications)
+   - Call from dialpad (manual entry or contact list dropdown)
+   - Call from chat window
+   - Call integration with Twilio and Telnyx
+   - Firefox instructions to enable browser access to microphone (in the Wiki)
+
+- SMS-to-Email Notifications
+   - Configure any SMTP server in the settings
+   - Enable notifications per profile with a checkbox
+   - _(Coming soon: configure email delay, skip notification if message read within delay)_
+
+- Firefox Setting:
+  - about:config
+  - permissions.default.microphone = 0
+  - (0=always ask (default), 1=allow, 2=block)
+  - If it was set to 2, then calling will not work. Change it to 0 and allow on the prompt when you make the call the first time.
+
+
+## v0.67 (Oct 13, 2021)
+- Multiple Bug fixes #58 #45
+- Pull down to refresh moved to message list section
+
+## v0.66 (Oct 3, 2021)
+- Bug fix: number list refresh in API section
+- Pull down to refresh on mobile (on full screen, home screen shortcut)
+- Contact names integration in message list (with or without +1)
+- Contacts: delete all button
+- Contact upload limit (500)
+
+## v0.65.2 (Sept 26, 2021)
+- Memory issues/buffer crashes fixed for heroku
+- manifest mobile shortcut icons (Progressive Web App look)
+
 ## v0.65.1 (Sept 19, 2021)
 - Image upload path issue fixed
 

@@ -1,5 +1,10 @@
 <template>
   <div>
+    <div id="loader1" v-if="isLoading">
+      <div class="d-flex loader justify-content-center align-items-center">
+        <div class="sp sp-circle"></div>
+      </div>
+  </div>
     <div v-for="profile in profiles" :key="profile._id" >
       <b-dropdown-item-button @click="changeProfile(profile)">
         <div class="d-flex flex-row">
@@ -48,6 +53,8 @@
 
 <script>
 import { required } from 'vuelidate/lib/validators'
+import { post } from '../../core/module/common.module'
+import { EventBus } from '@/event-bus'
 export default {
   data () {
     return {
@@ -57,6 +64,7 @@ export default {
       profiles: [],
       activeProfile: null,
       submitted3: false,
+      isLoading: false,
       form: {
         profile: ''
       }
@@ -89,6 +97,8 @@ export default {
       this.activeProfile = profile
       localStorage.setItem('activeProfile', JSON.stringify(profile))
       this.$emit('clicked', profile)
+      EventBus.$emit('clicked', true)
+      EventBus.$emit('changeProfile', true)
     },
     activeFirstProfile () {
       if (this.profiles.length > 0) {
@@ -99,77 +109,93 @@ export default {
       }
     },
     getallProfile () {
-      // eslint-disable-next-line no-undef
-      axios.post(`${this.baseurl}/profile/getdata`, {}, this.headers)
-        .then(response => {
-          this.profiles = response.data.data
-          if (!this.activeProfile) {
-            var profileLocal = localStorage.getItem('activeProfile')
-            if (profileLocal) {
-              var acPr = JSON.parse(profileLocal)
-              for (var i = 0; i < this.profiles.length; i++) {
-                if (this.profiles[i]._id === acPr._id) {
-                  this.activeProfile = this.profiles[i]
+      var request = {
+        data: {},
+        url: 'profile/getdata'
+      }
+      this.$store
+        .dispatch(post, request)
+        .then((response) => {
+          if (response) {
+            this.profiles = response.data
+            if (!this.activeProfile) {
+              var profileLocal = localStorage.getItem('activeProfile')
+              if (profileLocal) {
+                var acPr = JSON.parse(profileLocal)
+                if (acPr) {
+                  for (var i = 0; i < this.profiles.length; i++) {
+                    if (this.profiles[i]._id === acPr._id) {
+                      this.activeProfile = this.profiles[i]
+                      EventBus.$emit('changeProfile2', true)
+                    }
+                  }
+                } else {
+                  localStorage.setItem('activeProfile', JSON.stringify(this.profiles[0]))
+                  this.activeProfile = this.profiles[0]
+                  EventBus.$emit('changeProfile2', true)
                 }
+              } else {
+                localStorage.setItem('activeProfile', JSON.stringify(this.profiles[0]))
+                this.activeProfile = this.profiles[0]
+                EventBus.$emit('changeProfile2', true)
               }
-            } else {
-              this.activeProfile = this.profiles[0]
+              this.$emit('clicked', this.activeProfile)
             }
-            this.$emit('clicked', this.activeProfile)
           }
         })
-        .catch(error => {
-          if (error.response.status === 401) {
-            this.$swal({
-              icon: 'error',
-              title: 'Oops...',
-              text: error.response.data.message
-            })
-            this.$cookie.delete('access_token')
-            this.$router.push('/')
-          }
+        .catch((e) => {
+          console.log(e)
         })
     },
     handleSubmit (e) {
       this.submitted3 = true
+      EventBus.$emit('toggleLoader', true)
       this.$v.$touch()
       if (this.$v.$invalid) {
         return
       }
-      // eslint-disable-next-line no-undef
-      axios.post(`${this.baseurl}/profile/create`, this.form, this.headers)
-        .then(response => {
-          this.$swal({
-            icon: 'success',
-            title: 'Success',
-            text: 'Profile added successfully!'
-          })
-          this.$refs['add-profile'].hide()
-          this.getallProfile()
+      var request = {
+        data: this.form,
+        url: 'profile/create'
+      }
+      this.$store
+        .dispatch(post, request)
+        .then((response) => {
+          if (response) {
+            this.$swal({
+              icon: 'success',
+              title: 'Success',
+              text: 'Profile added successfully!'
+            })
+            this.changeProfile(response.data)
+            this.$refs['add-profile'].hide()
+            this.getallProfile()
+            this.isLoading = false
+            EventBus.$emit('toggleLoader', true)
+          }
         })
-        .catch(error => {
-          if (error.response.status === 401) {
-            this.$swal({
-              icon: 'error',
-              title: 'Oops...',
-              text: error.response.data.message
-            })
-            this.$cookie.delete('access_token')
-            this.$router.push('/')
-          }
-          if (error.response.status === 400) {
-            this.$swal({
-              icon: 'error',
-              title: 'Oops...',
-              text: 'Settings not saved'
-            })
-            // this.$router.push('/')
-          }
+        .catch((e) => {
+          console.log(e)
+          this.isLoading = false
+          EventBus.$emit('toggleLoader', true)
         })
     }
   }
 }
 </script>
 <style scoped>
-
+#loader1{
+  position: absolute;
+  background: white;
+  height: 100%;
+  width: 100%;
+  z-index: 2050;
+  top: 0;
+  left: 0;
+  opacity: .3;
+}
+.loader{
+  height: 100%;
+  width:100%;
+}
 </style>

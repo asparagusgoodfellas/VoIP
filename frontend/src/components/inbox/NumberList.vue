@@ -1,14 +1,20 @@
 <template>
   <div>
+    <div id="loader1" v-if="isLoading">
+      <div class="d-flex loader justify-content-center align-items-center">
+        <div class="sp sp-circle"></div>
+      </div>
+  </div>
     <div class="profile">
       <div class="d-flex flex-row bd-highlight align-items-center align-self-center">
         <div class="mt-2">
           <div class="d-flex flex-row bd-highlight">
+            <setting></setting>
             <div class="bd-highlight">
               <contact :contacts="contacts" @onaddContact="onaddContact"></contact>
             </div>
             <div class="bd-highlight">
-              <b-icon font-scale="1" icon="telephone" aria-hidden="true" class="m-2" title="Call"></b-icon>
+              <b-icon font-scale="1" icon="telephone" aria-hidden="true" class="m-2" title="Call" @click="$bvModal.show('modal-tall')"  style="cursor:pointer;"></b-icon>
             </div>
             <div class="bd-highlight">
               <b-icon  v-b-modal.modal-2 font-scale="1" icon="pencil-square" aria-hidden="true" class="m-2" title="Compose" style="cursor:pointer;"></b-icon>
@@ -35,11 +41,11 @@
               </div>
             </template>
             <b-dropdown-divider></b-dropdown-divider>
-            <b-dropdown-item-button v-b-modal.modal-1  v-if="activeProfile">
+            <!-- <b-dropdown-item-button v-b-modal.modal-1  v-if="activeProfile">
               <b-icon icon="gear-fill" aria-hidden="true"></b-icon>
               Settings
             </b-dropdown-item-button>
-            <b-dropdown-divider  v-if="activeProfile"></b-dropdown-divider>
+            <b-dropdown-divider  v-if="activeProfile"></b-dropdown-divider> -->
             <profile-view ref="childComponent" @clicked2="onClickChild2" @clicked="onClickChild" />
             <b-dropdown-item-button @click="logout()">
               <b-icon icon="power" aria-hidden="true"></b-icon>
@@ -52,7 +58,7 @@
     <div class="wrap-search">
       <div class="search">
         <i class="fa fa-search fa" aria-hidden="true"></i>
-        <input type="text" class="input-search" placeholder="Search" />
+        <input type="text" class="input-search" v-model="query" @keyup="searchContact()" placeholder="Search" />
       </div>
     </div>
     <div class="contact-list">
@@ -80,11 +86,12 @@
         </div>
       </div>
       <div
-        v-for="item in numbers"
+        v-for="item in search_numbers"
         :key="item._id"
         class="contact"
+        :id="`phone${item._id}`"
         v-on:click="firstChatShow(item)"
-        v-bind:class="{ activeChat: activeChat == item._id }"
+        v-bind:class="{ activeChat: activeChat == item._id}"
       >
         <b-icon
           font-scale="2"
@@ -92,19 +99,30 @@
           aria-hidden="true"
           class="mx-2 my-auto"
         ></b-icon>
-        <div class="contact-preview">
-          <div class="contact-text">
-            <h1 class="font-name">{{ item._id }}</h1>
-            <p class="font-preview">{{ getValidString(item.message)  }}</p>
+        <div class="d-flex justify-content-between" style="width:100%">
+          <div class="contact-preview">
+            <div class="contact-text">
+              <h1 class="font-name" v-if="item.contact">{{item.contact.first_name}} {{item.contact.last_name}}</h1>
+              <h1 v-else class="font-name">{{ item._id }}</h1>
+              <p class="font-preview" v-if="item.message">{{ getValidString(item.message)  }}</p>
+              <p class="font-preview" v-else>
+                <span v-if="item.message_type == 'call'">
+                  <span v-if="item.type == 'send'"> Outbound </span>
+                  <span v-else> Inbound </span>
+                  Call
+                </span>
+              </p>
+            </div>
           </div>
-        </div>
-        <div class="contact-time">
-          <p class="">{{ item.created_at | moment("HH:mm") }}</p>
+
+          <div class="align-self-center text-end me-3">
+          <span class="time">{{ item.created_at | moment("lll") }}</span> <!-- Jan 1, 2000 10:00 AM -->
           <span
             class="badge message_count bg-success" :id="item._id"
             v-if="item.isview > 0"
             >{{ item.isview }}</span
           >
+          </div>
         </div>
       </div>
     </div>
@@ -236,7 +254,7 @@
                   style="cursor: pointer"
                   @click="deleteApiKey()"
                   title="Delete"
-                  v-if="user.api_key != ''"
+                  v-if="showDelete"
                 >
                   <b-icon
                     font-scale="1.5"
@@ -310,7 +328,7 @@
                 </div>
               </div>
               <div class="col-auto m-auto">
-                <span class="float-right" style="cursor: pointer;" @click="deleteApiKey()" title="Delete" v-if="user.api_key != ''">
+                <span class="float-right" style="cursor: pointer;" @click="deleteApiKey()" title="Delete" v-if="showDelete">
                   <b-icon font-scale="1.5" icon="trash" aria-hidden="true"></b-icon>
                 </span>
               </div>
@@ -331,10 +349,13 @@ import ThemeButton from '@/components/ThemeButton.vue'
 import ProfileView from '@/components/setting/ProfileView.vue'
 import Contact from '@/components/setting/Contact.vue'
 import { required } from 'vuelidate/lib/validators'
-import { get } from '../../core/module/common.module'
+import { get, post } from '../../core/module/common.module'
+import PullToRefresh from 'pulltorefreshjs'
+import Setting from '@/components/setting/Setting.vue'
+import { EventBus } from '@/event-bus'
 export default {
   components: {
-    ProfileView, ThemeButton, Contact
+    ProfileView, ThemeButton, Contact, Setting
   },
   data () {
     return {
@@ -346,11 +367,14 @@ export default {
         twilio_number: '',
         profile: ''
       },
+      query: '',
+      isLoading: false,
       contacts: [],
       activeChat: '',
       submitted: false,
       messageListLoader: true,
       numbers: [],
+      search_numbers: [],
       baseurl: '',
       userdata: null,
       access_token: null,
@@ -358,11 +382,13 @@ export default {
       headers: null,
       tNumbers: [],
       twilioNumbers: [],
+      activeItem: null,
       options: [
         { text: 'Telnyx', value: 'telnyx' },
         { text: 'Twilio', value: 'twilio' }
       ],
-      selected: 'telnyx'
+      selected: 'telnyx',
+      showDelete: false
     }
   },
   validations: {
@@ -388,21 +414,66 @@ export default {
       }
     }
     this.onaddContact()
+    var $this = this
+    PullToRefresh.init({
+      mainElement: '.contact-list',
+      triggerElement: '.contact-list',
+      onRefresh () {
+        $this.pullRefreshFunction($this)
+        // $this.getNumberList()
+        // $this.getOneProfile()
+      },
+      distThreshold: 120,
+      distMax: 140
+    })
+    EventBus.$on('changeProfile', () => {
+      this.getOneProfile()
+    })
+    EventBus.$on('contactAdded', (number) => {
+      this.getNumberList()
+      setTimeout(() => {
+        if (number === 'delete' || this.activeItem._id === number) {
+          var numberClass = document.getElementsByClassName(`activeChat`)
+          if (numberClass.length > 0) {
+            numberClass[0].click()
+          }
+        }
+      }, 1500)
+    })
   },
   methods: {
+    pullRefreshFunction ($this) {
+      $this.getNumberList()
+      $this.getOneProfile()
+      $this.refreshProfile()
+    },
+    searchContact () {
+      // console.log(this.numbers)
+      var search = new RegExp(this.query, 'i')
+      this.search_numbers = this.numbers.filter(item => {
+        if (search.test(item._id)) {
+          return search.test(item._id)
+        } else if (item.contact && search.test(item.contact.first_name)) {
+          return search.test(item.contact.first_name)
+        } else if (item.contact && search.test(item.contact.last_name)) {
+          return search.test(item.contact.last_name)
+        } else if (search.test(item.message)) {
+          return search.test(item.message)
+        }
+      })
+    },
     onaddContact () {
-      // this.$emit('my_signal')
-      // this.$emit('clicked2', 'someValue')
       var request = {
         url: 'contact/get-all'
       }
       this.$emit('my_signal')
-      this.$emit('my_signal')
       this.$store
         .dispatch(get, request)
         .then((data) => {
-          this.contacts = data.data
-          this.$emit('onaddContact', data.data)
+          if (data) {
+            this.contacts = data.data
+            this.$emit('onaddContact', data.data)
+          }
         })
         .catch((e) => {
           console.log(e)
@@ -418,21 +489,19 @@ export default {
       return newStr2
     },
     getOneProfile () {
-      // eslint-disable-next-line no-undef
-      axios.post(`${this.baseurl}/profile/getdata-one`, { setting: this.activeProfile._id }, this.headers)
-        .then(response => {
-          this.activeProfile = response.data.data
-        })
-        .catch(error => {
-          if (error.response.status === 401) {
-            this.$swal({
-              icon: 'error',
-              title: 'Oops...',
-              text: error.response.data.message
-            })
-            this.$cookie.delete('access_token')
-            this.$router.push('/')
+      var request = {
+        data: { setting: this.activeProfile._id },
+        url: 'profile/getdata-one'
+      }
+      this.$store
+        .dispatch(post, request)
+        .then((response) => {
+          if (response) {
+            this.activeProfile = response.data
           }
+        })
+        .catch((e) => {
+          console.log(e)
         })
     },
     refreshProfile () {
@@ -440,7 +509,7 @@ export default {
     },
     onClickChild2 (value) {
       this.activeProfile = value
-      this.getSetting()
+      // this.getSetting()
     },
     onClickChild (value) {
       this.activeProfile = value
@@ -456,6 +525,7 @@ export default {
         element.style.display = 'none'
       }
       this.activeChat = id._id
+      this.activeItem = id
       localStorage.setItem('activenumber', JSON.stringify(id))
       this.$emit('clicked', id)
       // this.$emit('messageRefresh', true)
@@ -464,53 +534,57 @@ export default {
     logout () {
       this.$cookie.delete('access_token')
       this.$cookie.delete('userdata')
-      this.$router.push('/')
+      window.location.href = `/${this.$route.params.appdirectory}/`
     },
     getNumberList () {
       this.numbers = []
-      // eslint-disable-next-line no-undef
-      axios.post(`${this.baseurl}/setting/sms-number-list`, {user: this.userdata._id, setting: this.activeProfile._id}, this.headers)
-        .then(response => {
-          this.numbers = response.data
-          this.messageListLoader = false
-        })
-        .catch(error => {
-          if (error.response.status === 401) {
-            this.$swal({
-              icon: 'error',
-              title: 'Oops...',
-              text: error.response.data.message
-            })
-            this.$cookie.delete('access_token')
-            this.$router.push('/')
+      var request = {
+        data: {user: this.userdata._id, setting: this.activeProfile._id},
+        url: 'setting/sms-number-list'
+      }
+      this.$store
+        .dispatch(post, request)
+        .then((response) => {
+          if (response) {
+            this.numbers = response
+            this.messageListLoader = false
+            this.searchContact()
           }
+        })
+        .catch((e) => {
+          console.log(e)
         })
     },
+    hideShowDeleteIcon (response) {
+      if (response.type === 'telnyx' && response.api_key) {
+        this.showDelete = true
+      } else if (response.type === 'twilio' && response.twilio_sid) {
+        this.showDelete = true
+      } else {
+        this.showDelete = false
+      }
+    },
     getSetting () {
-      // eslint-disable-next-line no-undef
-      axios.post(`${this.baseurl}/setting/get-setting`, {user: this.userdata._id, setting: this.activeProfile._id}, this.headers)
-        .then(response => {
-          // this.numbers = response.data
-          if (response.data.data) {
-            this.user = response.data.data
-            this.user.twilio_number = response.data.data.number
-            if (response.data.data.number) {
+      var request = {
+        data: {user: this.userdata._id, setting: this.activeProfile._id},
+        url: 'setting/get-setting'
+      }
+      this.$store
+        .dispatch(post, request)
+        .then((response) => {
+          if (response && response.data) {
+            this.user = response.data
+            this.hideShowDeleteIcon(response.data)
+            this.user.twilio_number = response.data.number
+            if (response.data.number) {
               // this.socket.emit('join_channel', this.user.number)
             }
-            this.getNumbers(response.data.data.type)
-            this.selected = response.data.data.type
+            this.getNumbers(response.data.type)
+            this.selected = response.data.type
           }
         })
-        .catch(error => {
-          if (error.response.status === 401) {
-            this.$swal({
-              icon: 'error',
-              title: 'Oops...',
-              text: error.response.data.message
-            })
-            this.$cookie.delete('access_token')
-            this.$router.push('/')
-          }
+        .catch((e) => {
+          console.log(e)
         })
     },
     deleteProfile () {
@@ -523,40 +597,38 @@ export default {
         denyButtonText: `No`
       }).then((result) => {
         if (result.isConfirmed) {
-          // eslint-disable-next-line no-undef
-          axios.post(`${this.baseurl}/profile/delete-profile`, {user: this.userdata._id, profile_id: this.activeProfile._id}, this.headers)
-            .then(response => {
-              this.$swal({
-                icon: 'success',
-                title: 'Success',
-                text: 'Profile deleted successfully!'
-              })
-              this.user.api_key = ''
-              this.user.number = ''
-              this.user.twilio_sid = ''
-              this.user.twilio_token = ''
-              this.user.twilio_number = ''
-              this.tNumbers = []
-              this.twilioNumbers = []
-              this.activeProfile = response.data.data
-              localStorage.removeItem('activeProfile')
-              this.$refs['my-modal'].hide()
-              this.$refs.childComponent.getallProfile()
-              var $this = this
-              setTimeout(function () {
-                $this.$refs.childComponent.activeFirstProfile()
-              }, 2000)
-            })
-            .catch(error => {
-              if (error.response.status === 401) {
+          var request = {
+            data: {user: this.userdata._id, profile_id: this.activeProfile._id},
+            url: 'profile/delete-profile'
+          }
+          this.$store
+            .dispatch(post, request)
+            .then((response) => {
+              if (response.data) {
                 this.$swal({
-                  icon: 'error',
-                  title: 'Oops...',
-                  text: error.response.data.message
+                  icon: 'success',
+                  title: 'Success',
+                  text: 'Profile deleted successfully!'
                 })
-                this.$cookie.delete('access_token')
-                this.$router.push('/')
+                this.user.api_key = ''
+                this.user.number = ''
+                this.user.twilio_sid = ''
+                this.user.twilio_token = ''
+                this.user.twilio_number = ''
+                this.tNumbers = []
+                this.twilioNumbers = []
+                this.activeProfile = response.data
+                localStorage.removeItem('activeProfile')
+                this.$refs['my-modal'].hide()
+                this.$refs.childComponent.getallProfile()
+                var $this = this
+                setTimeout(function () {
+                  $this.$refs.childComponent.activeFirstProfile()
+                }, 2000)
               }
+            })
+            .catch((e) => {
+              console.log(e)
             })
         } else if (result.isDenied) {
           // eslint-disable-next-line no-undef
@@ -574,9 +646,13 @@ export default {
         denyButtonText: `No`
       }).then((result) => {
         if (result.isConfirmed) {
-          // eslint-disable-next-line no-undef
-          axios.post(`${this.baseurl}/setting/delete-key`, {user: this.userdata._id, profile_id: this.activeProfile._id}, this.headers)
-            .then(response => {
+          var request = {
+            data: {user: this.userdata._id, profile_id: this.activeProfile._id},
+            url: 'setting/delete-key'
+          }
+          this.$store
+            .dispatch(post, request)
+            .then((response) => {
               this.$swal({
                 icon: 'success',
                 title: 'Success',
@@ -589,22 +665,13 @@ export default {
               this.user.twilio_number = ''
               this.tNumbers = []
               this.twilioNumbers = []
-              this.activeProfile = response.data.data
+              this.activeProfile = response.data
+              this.hideShowDeleteIcon(response.data)
               this.$refs.childComponent.getallProfile()
             })
-            .catch(error => {
-              if (error.response.status === 401) {
-                this.$swal({
-                  icon: 'error',
-                  title: 'Oops...',
-                  text: error.response.data.message
-                })
-                this.$cookie.delete('access_token')
-                this.$router.push('/')
-              }
+            .catch((e) => {
+              console.log(e)
             })
-          // eslint-disable-next-line no-undef
-          // this.$swal.fire('Deleted!', '', 'success')
         } else if (result.isDenied) {
           // eslint-disable-next-line no-undef
           this.$swal.fire('setting not deleted', '', 'info')
@@ -614,25 +681,28 @@ export default {
     getNumbers (type) {
       var settings = this.user
       settings.type = type
-      // eslint-disable-next-line no-undef
-      axios.post(`${this.baseurl}/setting/get-number`, settings, this.headers)
-        .then(response => {
-          if (type === 'telnyx') {
-            this.tNumbers = response.data.data.data
-          } else {
-            this.twilioNumbers = response.data.data
+      var request = {
+        data: settings,
+        url: 'setting/get-number'
+      }
+      if (type === 'telnyx') {
+        this.tNumbers = []
+      } else {
+        this.twilioNumbers = []
+      }
+      this.$store
+        .dispatch(post, request)
+        .then((response) => {
+          if (response) {
+            if (type === 'telnyx') {
+              this.tNumbers = response.data.data
+            } else {
+              this.twilioNumbers = response.data
+            }
           }
         })
-        .catch(error => {
-          if (error.response.status === 401) {
-            this.$swal({
-              icon: 'error',
-              title: 'Oops...',
-              text: error.response.data.message
-            })
-            this.$cookie.delete('access_token')
-            this.$router.push('/')
-          }
+        .catch((e) => {
+          console.log(e)
         })
     },
     handleSubmit (e) {
@@ -670,36 +740,107 @@ export default {
           setting: this.activeProfile._id,
           profile: this.user.profile
         }
-        // eslint-disable-next-line no-undef
-        axios.post(`${this.baseurl}/setting/create`, sendData, this.headers)
-          .then(response => {
-            this.$swal({
-              icon: 'success',
-              title: 'Success',
-              text: 'Settings saved successfully!'
-            })
-            this.$refs['my-modal'].hide()
-            this.activeProfile = response.data.data
-            this.$refs.childComponent.getallProfile()
-            this.$v.$reset()
+        this.isLoading = true
+        var request = {
+          data: sendData,
+          url: 'setting/check-setting'
+        }
+        this.$store
+          .dispatch(post, request)
+          .then((response) => {
+            var isCall = false
+            if (response) {
+              if (this.selected === 'telnyx' && response.data.data.connection_id !== undefined && response.data.data.connection_id && response.data.data.connection_id !== '') {
+                isCall = true
+              }
+
+              if (this.selected === 'twilio') {
+                var appSidavilable = false
+                if (response.data.voiceApplicationSid !== undefined && response.data.voiceApplicationSid && response.data.voiceApplicationSid !== '') {
+                  isCall = true
+                  appSidavilable = true
+                }
+                if (!appSidavilable) {
+                  if (response.data.voiceUrl !== undefined && response.data.voiceUrl && response.data.voiceUrl !== '') {
+                    isCall = true
+                  }
+                }
+              }
+              if (isCall) {
+                this.$swal.fire({
+                  icon: 'warning',
+                  title: 'Call Setting',
+                  text: 'The call setting is already available. Do you want to override the call setting?',
+                  showDenyButton: true,
+                  confirmButtonText: 'Yes, override it',
+                  denyButtonText: `No, Keep old`
+                }).then((result) => {
+                  var updateCallSetting = false
+                  if (result.isConfirmed) {
+                    updateCallSetting = true
+                    sendData.override = 'true'
+                  } else if (result.isDenied) {
+                    updateCallSetting = true
+                    sendData.override = 'false'
+                  }
+                  if (updateCallSetting) {
+                    this.isLoading = true
+                    var request = {
+                      data: sendData,
+                      url: 'setting/create'
+                    }
+                    this.$store
+                      .dispatch(post, request)
+                      .then((response) => {
+                        if (response) {
+                          this.$refs['my-modal'].hide()
+                          this.activeProfile = response.data
+                          this.hideShowDeleteIcon(response.data)
+                          this.$refs.childComponent.getallProfile()
+                          EventBus.$emit('clicked', true)
+                          EventBus.$emit('changeProfile2', true)
+                          this.$v.$reset()
+                        }
+                        this.isLoading = false
+                      })
+                      .catch((e) => {
+                        this.isLoading = false
+                        console.log(e)
+                      })
+                  }
+                })
+              } else {
+                sendData.override = 'true'
+                var request = {
+                  data: sendData,
+                  url: 'setting/create'
+                }
+                this.$store
+                  .dispatch(post, request)
+                  .then((response) => {
+                    if (response) {
+                      this.$refs['my-modal'].hide()
+                      this.activeProfile = response.data
+                      this.hideShowDeleteIcon(response.data)
+                      this.$refs.childComponent.getallProfile()
+                      EventBus.$emit('clicked', true)
+                      EventBus.$emit('changeProfile2', true)
+                      this.$v.$reset()
+                    }
+                    this.isLoading = false
+                  })
+                  .catch((e) => {
+                    this.isLoading = false
+                    console.log(e)
+                  })
+              }
+              // console.log(response)
+            }
+            this.isLoading = false
           })
-          .catch(error => {
-            if (error.response.status === 401) {
-              this.$swal({
-                icon: 'error',
-                title: 'Oops...',
-                text: error.response.data.message
-              })
-              this.$cookie.delete('access_token')
-              this.$router.push('/')
-            }
-            if (error.response.status === 400) {
-              this.$swal({
-                icon: 'error',
-                title: 'Oops...',
-                text: error.response.data.message
-              })
-            }
+          .catch((e) => {
+            this.isLoading = false
+            console.log(e)
           })
       }
     }
@@ -729,5 +870,52 @@ export default {
     border-right: 0.3em solid transparent;
     border-bottom: 0;
     border-left: 0.3em solid transparent;
+}
+.sp {
+  width: 32px;
+  height: 32px;
+  clear: both;
+  margin: 20px auto;
+}
+
+/* Spinner Circle Rotation */
+.sp-circle {
+  border: 4px rgba(0, 0, 0, 0.25) solid;
+  border-top: 4px black solid;
+  border-radius: 50%;
+  -webkit-animation: spCircRot 0.6s infinite linear;
+  animation: spCircRot 0.6s infinite linear;
+}
+
+@-webkit-keyframes spCircRot {
+  from {
+    -webkit-transform: rotate(0deg);
+  }
+  to {
+    -webkit-transform: rotate(359deg);
+  }
+}
+@keyframes spCircRot {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(359deg);
+  }
+}
+#loader1{
+  position: absolute;
+  background: white;
+  height: 100%;
+  width: 100%;
+  z-index: 2050;
+  top: 0;
+  left: 0;
+  opacity: .3;
+}
+.loader{
+  height: 100%;
+  width:100%;
+  z-index: 2100;
 }
 </style>

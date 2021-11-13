@@ -9,7 +9,7 @@
                   <b-input-group-prepend is-text>
                     <b-icon icon="person-fill"></b-icon>
                   </b-input-group-prepend>
-                <input class="form-control chat-input" type="text" placeholder="Username" id="login-input" v-model="user.email" :class="{ 'is-invalid': submitted && $v.user.email.$error }">
+                <input class="form-control chat-input" type="text" placeholder="Username" v-model="user.email" :class="{ 'is-invalid': submitted && $v.user.email.$error }">
                  </b-input-group>
                 <div v-if="submitted && $v.user.email.$error" class="invalid-feedback">
                   <span v-if="!$v.user.email.required">Username is required</span>
@@ -21,7 +21,7 @@
                   <b-input-group-prepend is-text>
                     <b-icon icon="shield-lock"></b-icon>
                   </b-input-group-prepend>
-                <input class="chat-input form-control" v-model="user.password"  type="password" placeholder="Password" id="login-input" :class="{ 'is-invalid': submitted && $v.user.password.$error }">
+                <input class="chat-input form-control" v-model="user.password"  type="password" placeholder="Password" :class="{ 'is-invalid': submitted && $v.user.password.$error }">
                </b-input-group>
                 <div v-if="submitted && $v.user.password.$error" class="invalid-feedback">
                     <span v-if="!$v.user.password.required">Password is required</span>
@@ -32,7 +32,7 @@
                 <button class="btn btn-success mt-3" type="submit" id="login-button">Login</button>
               </div>
               <div class="my-2 small" v-if="signUpOption">
-                Don’t have an account yet? <router-link to="/signup" class="mx-2"> Sign up</router-link>
+                Don’t have an account yet? <router-link :to="signupRoute" class="mx-2"> Sign up</router-link>
               </div>
               <div  class="d-grid d-md-flex mt-2 small" v-else>
                 New registrations are disabled
@@ -46,7 +46,8 @@
                 </div>
               </div>
               <div class="d-grid d-md-flex">
-                <button class="btn btn-success mt-3" type="button" v-on:click="handleSubmit2($event)" id="login-button">Submit</button>
+                <!-- v-on:click="handleSubmit2($event)" -->
+                <button class="btn btn-success mt-3" type="button"  id="login-button2">Submit</button>
               </div>
             </form>
             <div class="d-flex my-4 justify-content-center">
@@ -66,6 +67,7 @@
 </template>
 
 <script>
+import { post } from '../core/module/common.module'
 import ThemeButton from '@/components/ThemeButton.vue'
 import { required, minLength } from 'vuelidate/lib/validators'
 export default {
@@ -88,7 +90,8 @@ export default {
         otp: ''
       },
       submitted: false,
-      submitted2: false
+      submitted2: false,
+      signupRoute: ''
     }
   },
   validations: {
@@ -98,36 +101,46 @@ export default {
     }
   },
   mounted: function () {
-    var baseUrl = window.location.origin
-    if (baseUrl === 'http://localhost:8080') {
-      this.baseurl = 'http://localhost:3000'
-    }
+    this.signupRoute = `/${this.$route.params.appdirectory}/signup`
     if (this.$cookie.get('access_token')) {
-      this.$router.push('/dashboard')
+      this.$router.push(`/${this.$route.params.appdirectory}/dashboard`)
     }
     this.getsignup()
     this.getVersion()
   },
   methods: {
     getsignup () {
-      // eslint-disable-next-line no-undef
-      axios.post(`${this.baseurl}/auth/get-signup`, {})
-        .then(response => {
-          if (response.data.data === 'on') {
+      var request = {
+        data: {},
+        url: 'auth/get-signup'
+      }
+      this.$store
+        .dispatch(post, request)
+        .then((response) => {
+          if (response && response.data === 'on') {
             this.signUpOption = true
           } else {
             this.signUpOption = false
           }
         })
-        .catch(() => {
+        .catch((e) => {
           this.signUpOption = false
         })
     },
     getVersion () {
-      // eslint-disable-next-line no-undef
-      axios.post(`${this.baseurl}/auth/get-version`, {})
-        .then(response => {
-          this.versionOption = response.data.data
+      var request = {
+        data: {},
+        url: 'auth/get-version'
+      }
+      this.$store
+        .dispatch(post, request)
+        .then((response) => {
+          if (response) {
+            this.versionOption = response.data
+          }
+        })
+        .catch((e) => {
+          // this.signUpOption = false
         })
     },
     handleSubmit (e) {
@@ -138,27 +151,28 @@ export default {
         return
       }
 
-      // eslint-disable-next-line no-undef
-      axios.post(`${this.baseurl}/auth/login`, this.user)
-        .then(response => {
-          this.$cookie.set('access_token', response.data.token, 30)
-          this.$cookie.set('userdata', JSON.stringify(response.data.data), 30)
-          this.$router.push('/dashboard')
-        })
-        .catch(error => {
-          if (error.response.status === 401) {
-            this.$swal({
-              icon: 'error',
-              title: 'Oops...',
-              text: error.response.data.message
-            })
+      var request = {
+        data: this.user,
+        url: 'auth/login'
+      }
+      this.$store
+        .dispatch(post, request)
+        .then((response) => {
+          if (response) {
+            this.$cookie.set('access_token', response.token, 30)
+            this.$cookie.set('userdata', JSON.stringify(response.data), 30)
+            console.log(this.$cookie.get('access_token'))
+            console.log(this.$cookie.get('userdata'))
+            this.$router.push(`/${this.$route.params.appdirectory}/dashboard`)
           }
         })
-    },
-    handleSubmit2 (e) {
+        .catch((e) => {
+          // this.signUpOption = false
+        })
+    }
+    /* handleSubmit2 (e) {
       this.submitted2 = true
       if (this.otpForm.otp.trim() !== '') {
-        // eslint-disable-next-line no-undef
         axios.post(`${this.baseurl}/auth/otp-verify`, {user: this.loginId, otp: this.otpForm.otp})
           .then(response => {
             localStorage.setItem('access_token', response.data.token)
@@ -177,7 +191,7 @@ export default {
       } else {
         this.otpError = true
       }
-    }
+    } */
   }
 }
 </script>
