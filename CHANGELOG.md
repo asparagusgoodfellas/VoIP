@@ -1,9 +1,44 @@
 
 # Changelog
 
-> Note: Every update deletes the MMS media files/folder
+> Note: Every update deletes the MMS media files/folder that's stored locally and not in the database.
 
 ---
+## v0.89 (April 1, 2022)
+### Bug
+- App would randomly crash with some API pulls, hard to replicate. Added a lot of try/catch statements to contain it.
+
+## v0.88 (March 20, 2022)
+### Typo
+- Email settings: TO, FROM field labels corrected.
+
+## v0.87 (Feb 16, 2022)
+### Bug
+- Messages are removed from Twilio's internal logs with an API call. Sometimes it was failing to delete. Now message log deletion waits for confirmation from the API and retries 5 times if one is not received before giving up. Fixes issue #112
+- Fixed issue #105 (images in mobile view were saving as .bin)
+- Fixed version display
+- TOTP toggle asks for confirmation before disabling
+
+## v0.86 (Feb 14, 2022)
+### Bug
+- Fixed issue with web browser based calling on a Twilio number.
+
+## v0.85 (Feb 12, 2022)
+### Feature
+- Hardware Key support added. You can add multiple security keys that support U2F (e.g., Yubikey, OnlyKey, Titan, etc).
+
+## v0.84 (Jan 16, 2022)
+### Bug
+- fixed issue #107, #110, email settings save issue, custom APPDIRECTORY caching issue.
+
+## v0.83 (Jan 12, 2022)
+### Bug
+- fixed issue 107, email settings save issue.
+
+## v0.82 (Jan 3, 2022)
+### Bug
+- fixed issue 103, inbound call option stays open even after call hangs up.
+
 ## v0.81 (Dec 9, 2021)
 ### Bug
 - Custom APPDIRECTORY route issue fixed
@@ -181,7 +216,7 @@ By default it is not defined. Full instructions [here](https://github.com/0perat
 - Contacts
   - `Add` Manually
   - `Import` CSV file
-  - `Expoert` CSV file
+  - `Export` CSV file
   - `Dropdown` in compose message
 - Bug Fix
   - Send empty message error
